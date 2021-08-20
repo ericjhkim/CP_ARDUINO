@@ -14,7 +14,7 @@ float gx, gy, gz;                               // Gyroscope values
 #define ENCGND 9
 #define ENCPPR 150 // Counts/revln
 
-float WHEEL_CIRC = 0.08;                        // Wheel cirucmference in metres
+float WHEEL_DIA = 0.08;                         // Wheel diameter in metres
 int counter = -1;                               // Wheel encoder counter
 int state_clk;                                  // Flag to check whether encoder value should be updated
 int state_clk_prev;                                 // - Related flag
@@ -228,7 +228,7 @@ void updateEncoder() {
         }
 
         // Calculate cart position based on wheel encoder counter
-        state_x = WHEEL_CIRC * PI * counter / ENCPPR;
+        state_x = WHEEL_DIA * PI * counter / ENCPPR;
 
     }
 
