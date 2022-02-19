@@ -14,6 +14,9 @@ float gx, gy, gz;                               // Gyroscope values
 #define ENCGND 9
 #define ENCPPR 150 // Counts/revln
 
+float RAD2DEG = 180/PI;
+float TH_OFFSET = 90.0;                         // Offset for pole angle calibration 78.0
+
 float WHEEL_DIA = 0.08;                         // Wheel diameter in metres
 int counter = -1;                               // Wheel encoder counter
 int state_clk;                                  // Flag to check whether encoder value should be updated
@@ -27,17 +30,15 @@ float state_dx = 0;                             // Velocity state measurement
 float dt_v = 5;                                 // Velocity state update interval (ms)
 
 float state[4] = {0, 0, 0, 0};                  // Structure for storing states {x, dx, theta, dtheta}
-float x_max = 1;                                // Maximum position value
-float theta_max = 60 * PI / 180;                // Maximum theta value
+float MAX_THETA = 80;                           // Maximum theta value
 
-long state_t_init;                              // Time when arduino completed initialization (to have a time buffer between initialization and running functions)
-long state_t;                                   // Current time
-long state_t_prev;                              // Time at last measurement
-float dt;                                       // Time elapsed since last pole angle measurement
-float theta_xl;                                 // Pole angle measurement from accelerometer
+long first_time, now_time, prev_time=0, loop_time;
+float state2_acc = 0;
+float state2_gyro = 0;
+float d_gyro;
+
 float state_th;                                 // Variable for pole angle estimation
-float state_dth;                                // Variable for pole angle rate of change
-// float state_th_prev;                            // Variable for previous pole angle estimation (used only when performing integration for dth)
+float theta_xl;                                 // Pole angle measurement from accelerometer
 
 int varyindx = 0;                               // Index for velocity smoothing filter
 float varray[5] = {0,0,0,0,0};                  // Structure for velocity smoothing filter
@@ -45,14 +46,21 @@ int varysize = sizeof(varray)/4;                // Size of array in bytes - 4 by
 
 bool init_flag = true;                          // Second initialization semaphore
 
-Average<float> th_ave(5);                       // Smoothing filter for pole angle measurement (from external library)
-Average<float> dth_ave(5);                      // Smoothing filter for d(pole angle) measurement (from external library)
+Average<float> th_ave(10);                       // Smoothing filter for pole angle measurement (from external library)
+Average<float> dth_ave(10);                      // Smoothing filter for d(pole angle) measurement (from external library)
+
+float endNode;
+
+// MOTOR CONTROLS AND LIMITS
+int speedVal = 0;
+int speedInc = 1;
+int maxSpeed = 127;
 
 //==============SETUP======================
 
 void setup() {
 
-    Serial.begin(9600);
+    Serial.begin(19200);
     qik.init();
     encoderInit();
 
@@ -64,14 +72,14 @@ void setup() {
         while (1);
     }
 
-    Serial.println("<Arduino is ready>");
-    state_t_init = millis();
-    
+    Serial.println("<Arduino is ready>");    
 }
 
 //===============LOOP=======================
 
 void loop() {
+
+    float command;
 
     if (init_flag){
         // Initial encoder time measurement
@@ -79,78 +87,71 @@ void loop() {
 
         // Initial pole angle measurement
         IMU.readAcceleration(xlx, xly, xlz);
-        state_th = atan(xlz / xly + 0.18);
-        // state_th_prev = state_th;
-        state_t_prev = millis();
+        state_th = atan2(xlz,xly)*RAD2DEG+TH_OFFSET;
         init_flag = false;
-        Serial.println("Second initialization complete.");
+        Serial.println("<Second initialization complete>");
     }
+
+    first_time = millis();
+    now_time = millis();
 
     // SENSOR TEST
-    while ((state_t - state_t_init)/1000 < 60) {
+    while (1) {
+        now_time = millis();
+        loop_time = now_time - prev_time;
+        prev_time = now_time;
+
         getStates();
-        
-        Serial.print(state[0]);                 // Position
+
+        Serial.print(state[2]);                 // Angular velocity
         Serial.print("__:__");
-        Serial.print(state[1]);                 // Velocity
+        Serial.print(gx);                   // Angular velocity
         Serial.print("__:__");
-        Serial.print(state[2]*180/PI);          // Pole angle
+        Serial.print(gy);                   // Angular velocity
         Serial.print("__:__");
-        Serial.print(state[3]*180/PI);          // Angular velocity
+        Serial.print(gz);                   // Angular velocity
         Serial.print("__:__");
-        Serial.println(millis());                // Time
+        Serial.println(now_time);               // Time
+
+        if (abs(state[2]) > MAX_THETA){
+            Serial.println("<FAILED: Agent crashed>");
+            break;
+        }
     }
-
-    // MOTOR TEST
-    // while (state_t < 20){
-    //     if (state_t - state_t_init < 5){
-    //         qik.setSpeeds(30, 30);
-    //     }
-    //     else if (state_t - state_t_init >= 5 && state_t - state_t_init < 10){
-    //         qik.setSpeeds(-30, -30);
-    //     }
-    //     else if (state_t - state_t_init >= 10 && state_t - state_t_init < 15){
-    //         qik.setSpeeds(30, -30);
-    //     }
-    //     else if (state_t - state_t_init >= 15 && state_t - state_t_init < 20){
-    //         qik.setSpeeds(-30, 30);
-    //     }
-    //     else{
-    //         qik.setSpeeds(0,0);
-    //     }
-    //     state_t = millis() / 1000;
-    // }
-
-    // DISTANCE TEST
-    // while (state_t - state_t_init < 60) {
-    //     getStates();
-        
-    //     if (state[0] < 0.3){
-    //         qik.setSpeeds(30, 30);
-    //     }else{
-    //         qik.setSpeeds(0, 0);
-    //         break;
-    //     }
-
-    //     Serial.print(state[0]);                 // Position
-    //     Serial.print("__:__");
-    //     Serial.print(state[1]);                 // Velocity
-    //     Serial.print("__:__");
-    //     Serial.print(state_dx);                 // Velocity
-    //     Serial.print("__:__");
-    //     Serial.print(state[2]*180/PI);          // Pole angle
-    //     Serial.print("__:__");
-    //     Serial.print(state[3]*180/PI);          // Angular velocity
-    //     Serial.print("__:__");
-    //     Serial.println(millis());                // Time
-
-    // }
 
     qik.setSpeeds(0, 0);
-    Serial.println("ENDED");
+    Serial.println("<EXPERIMENT ENDED>");
     while (1) {
     }
+}
 
+//==========================================
+// Takes raw IMU and encoder data and calculates position, velocity, pole angle, angular velocity
+void getStates2() {
+
+    // Set distance ===================================================================================
+    state[0] = state_x;
+    
+    // Set velocity ===================================================================================
+    state[1] = state_dx;
+
+    // Set pole angle =================================================================================
+    IMU.readGyroscope(gx, gy, gz);                                          // Take gyroscope measurement
+    IMU.readAcceleration(xlx, xly, xlz);                                    // Take accelerometer measurement
+    // Accelerator measurement
+    state2_acc = atan2(xlz,xly)*RAD2DEG+TH_OFFSET;
+    // Gyroscope measurement
+    d_gyro = gx*loop_time/1000-0.2;
+    state2_gyro = state2_gyro + d_gyro;
+    // Filtered angle
+    th_ave.push(-state2_acc);
+    state[2] = th_ave.mean();                                               // Theta with averaging filter
+//    state[2] = -state2_acc;
+    
+    // Set angular velocity ===================================================================================
+    dth_ave.push(-d_gyro);
+    state[3] = dth_ave.mean();                                              // dTheta with averaging filter
+//    state[3] = -d_gyro;
 }
 
 //==========================================
@@ -160,37 +161,24 @@ void getStates() {
     // Set distance ===================================================================================
     state[0] = state_x;
 
-    
-
     // Set velocity ===================================================================================
     state[1] = state_dx;
     
-    // if (state_x_prev == state_x) {                                          // Force velocity to be 0 if no change in distance from previous measurement
-    // state[1] = 0;
-    // }
-    // state_x_prev = state_x;
+    IMU.readGyroscope(gx, gy, gz);                                          // Take gyroscope measurement
+    IMU.readAcceleration(xlx, xly, xlz);                                    // Take accelerometer measurement
 
-    // Set pole angle =================================================================================
-    // (Experimentally determined 0.18 bias for tuning)
-    state_t = millis();                                                         // Convert time to seconds
-    if (state_t - state_t_prev >= 5){                                           // Update angle measurements at most every 5 ms to avoid inf division errors (typically 50 ms)
-        IMU.readGyroscope(gx, gy, gz);                                          // Take gyroscope measurement
-        IMU.readAcceleration(xlx, xly, xlz);                                    // Take accelerometer measurement
-        theta_xl = atan(xlz / xly) + 0.18;
-        dt = (state_t - state_t_prev);                                          // Time since last data call (seconds)
-        state_th = 0.9 * (state_th + (-gx * PI / 180) * (dt/1000)) + 0.1 * theta_xl;   // Kalman filter operation to combine gyro and xl measurements (gyro outputs in deg/s)
+    gx = -gx + 4.0;                                                         // Stationary offset adjustment
 
-        th_ave.push(state_th);
-        state[2] = th_ave.mean();                                               // Theta with averaging filter
-        // state[2] = state_th;                                                 // Theta without averaging filter
+    if (!isnan(gx) && !isnan(xly) && !isnan(xlz)){
+        // Set pole angle =================================================================================
+        theta_xl = atan2(xlz,xly)*RAD2DEG+TH_OFFSET;
+        state_th = 0.9*(state_th+gx*(loop_time/1000)) + 0.1*theta_xl;       // Kalman filter operation to combine gyro and xl measurements (gyro outputs in deg/s)
+    
+        state[2] = state_th;                                                // Theta without averaging filter
 
         // Set angular velocity ===========================================================================
-        state_dth = (-gx+1) * PI / 180;                                         // 1 degree tuning
-        dth_ave.push(state_dth);
-        state[3] = dth_ave.mean();                                              // dTheta with averaging filter
-        // state[3] = (state[2] - state_th_prev)/(dt/1000);                     // dTheta without averaging filter
-        // state_th_prev = state[2];                                            // Previous angle value is unused
-        state_t_prev = state_t;                                                 // Update latest "previous time"
+        dth_ave.push(gx);
+        state[3] = dth_ave.mean();                                          // dTheta with averaging filter
     }
 }
 

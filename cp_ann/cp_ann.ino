@@ -14,6 +14,9 @@ float gx, gy, gz;                               // Gyroscope values
 #define ENCGND 9
 #define ENCPPR 150 // Counts/revln
 
+float RAD2DEG = 180/PI;
+float TH_OFFSET = 78.0;                         // Offset for pole angle calibration
+
 float WHEEL_DIA = 0.08;                         // Wheel diameter in metres
 int counter = -1;                               // Wheel encoder counter
 int state_clk;                                  // Flag to check whether encoder value should be updated
@@ -27,8 +30,12 @@ float state_dx = 0;                             // Velocity state measurement
 float dt_v = 5;                                 // Velocity state update interval (ms)
 
 float state[4] = {0, 0, 0, 0};                  // Structure for storing states {x, dx, theta, dtheta}
-float x_max = 1;                                // Maximum position value
-float theta_max = 60 * PI / 180;                // Maximum theta value
+float MAX_THETA = 80;                           // Maximum theta value
+
+long first_time, now_time, prev_time=0, loop_time;
+float state2_acc = 0;
+float state2_gyro = 0;
+float d_gyro;
 
 long state_t_init;                              // Time when arduino completed initialization (to have a time buffer between initialization and running functions)
 long state_t;                                   // Current time
@@ -45,28 +52,35 @@ int varysize = sizeof(varray)/4;                // Size of array in bytes - 4 by
 
 bool init_flag = true;                          // Second initialization semaphore
 
-Average<float> th_ave(3);                       // Smoothing filter for pole angle measurement (from external library)
-Average<float> dth_ave(3);                      // Smoothing filter for d(pole angle) measurement (from external library)
+Average<float> th_ave(10);                       // Smoothing filter for pole angle measurement (from external library)
+Average<float> dth_ave(10);                      // Smoothing filter for d(pole angle) measurement (from external library)
 
 // NEURAL NETWORK STUFF
 // Node weights (x, dx, theta, dtheta)
-float w1 = 0;
-float w2 = 2.434;
-float w3 = 2.095;
-float w4 = 1.228;
-float wB = 0.01461;
+//float w1 = 0;
+//float w2 = 2.434;
+//float w3 = 2.095;
+//float w4 = 1.228;
+//float wB = 0.01461;
+
+float w1 = 0.305;
+float w2 = 0.1666;
+float w3 = 0.71807;
+float w4 = 0.10996;
+float wB = 0.02534;
 
 float endNode;
 
 // MOTOR CONTROLS AND LIMITS
 int speedVal = 0;
-int maxSpeed = 32;
+int speedInc = 1;
+int maxSpeed = 127;
 
 //==============SETUP======================
 
 void setup() {
 
-    Serial.begin(9600);
+    Serial.begin(38400);
     qik.init();
     encoderInit();
 
@@ -89,46 +103,62 @@ void loop() {
 
     float command;
 
-    if (init_flag){
-        // Initial encoder time measurement
-        state_tpos_prev = millis();
+//    if (init_flag){
+//        // Initial encoder time measurement
+//        state_tpos_prev = millis();
+//
+//        // Initial pole angle measurement
+//        IMU.readAcceleration(xlx, xly, xlz);
+//        state_th = atan(xlz / xly + 0.18);
+//        state_th_prev = state_th;
+//        state_t_prev = millis();
+//        init_flag = false;
+//        Serial.println("<Second initialization complete>");
+//    }
 
-        // Initial pole angle measurement
-        IMU.readAcceleration(xlx, xly, xlz);
-        state_th = atan(xlz / xly + 0.18);
-        state_th_prev = state_th;
-        state_t_prev = millis();
-        init_flag = false;
-        Serial.println("<Second initialization complete>");
-    }
+    first_time = millis();
+    now_time = millis();
 
     // SENSOR TEST
-    while ((state_t - state_t_init)/1000 < 15) {
-        getStates();
+    while ((now_time - first_time)/1000 < 10) {
+        now_time = millis();
+        loop_time = now_time - prev_time;
+        prev_time = now_time;
+        
+        getStates2();
         command = feedForward(state);
         
-        if (abs(state[2]) < 5*PI/180){
-            maxSpeed = 32;
-        }
-        else{
-            maxSpeed = 127;
-        }
+//        if (abs(state[2]) < 10){
+//            maxSpeed = 64;
+//        }
+//        else{
+//            maxSpeed = 127;
+//        }
 
         if (command > 0.5) { //move forwards
-            // speedVal += 10;
-            // speedVal = min(speedVal, maxSpeed);
-            // qik.setSpeeds(speedVal, speedVal);
+//             speedVal += speedInc;
+//             speedVal = min(speedVal, maxSpeed);
+//             qik.setSpeeds(speedVal, speedVal);
             qik.setSpeeds(maxSpeed, maxSpeed);
         }
         else { //move backwards
-            // speedVal -= 10;
-            // speedVal = max(speedVal, -maxSpeed);
-            // qik.setSpeeds(speedVal, speedVal);
+//             speedVal -= speedInc;
+//             speedVal = max(speedVal, -maxSpeed);
+//             qik.setSpeeds(speedVal, speedVal);
             qik.setSpeeds(-maxSpeed, -maxSpeed);
         }
 
-        if (abs(state[2]) > theta_max){
+        if (abs(state[2]) > MAX_THETA || isnan(state[2])){
             Serial.println("<FAILED: Agent crashed>");
+            Serial.print(state[0]);                 // Position
+            Serial.print("__:__");
+            Serial.print(state[1]);                 // Velocity
+            Serial.print("__:__");
+            Serial.print(state[2]);                 // Pole angle
+            Serial.print("__:__");
+            Serial.print(state[3]);                 // Angular velocity
+            Serial.print("__:__");
+            Serial.println(now_time);               // Time
             break;
         }
 
@@ -136,11 +166,11 @@ void loop() {
         Serial.print("__:__");
         Serial.print(state[1]);                 // Velocity
         Serial.print("__:__");
-        Serial.print(state[2]*180/PI);          // Pole angle
+        Serial.print(state[2]);                 // Pole angle
         Serial.print("__:__");
-        Serial.print(state[3]*180/PI);          // Angular velocity
+        Serial.print(state[3]);                 // Angular velocity
         Serial.print("__:__");
-        Serial.println(millis());               // Time
+        Serial.println(now_time);               // Time
     }
 
     qik.setSpeeds(0, 0);
@@ -148,6 +178,35 @@ void loop() {
     while (1) {
     }
 
+}
+
+//==========================================
+// Takes raw IMU and encoder data and calculates position, velocity, pole angle, angular velocity
+void getStates2() {
+
+    // Set distance ===================================================================================
+    state[0] = state_x;
+    
+    // Set velocity ===================================================================================
+    state[1] = state_dx;
+
+    // Set pole angle =================================================================================
+    IMU.readGyroscope(gx, gy, gz);                                          // Take gyroscope measurement
+    IMU.readAcceleration(xlx, xly, xlz);                                    // Take accelerometer measurement
+    // Accelerator measurement
+    state2_acc = atan2(xly,xlz)*RAD2DEG+TH_OFFSET;
+    // Gyroscope measurement
+    d_gyro = gx*loop_time/1000-0.2;
+    state2_gyro = state2_gyro + d_gyro;
+    // Filtered angle
+    th_ave.push(-state2_acc);
+    state[2] = th_ave.mean();                                               // Theta with averaging filter
+//    state[2] = -state2_acc;
+    
+    // Set angular velocity ===================================================================================
+    dth_ave.push(-d_gyro);
+    state[3] = dth_ave.mean();                                              // dTheta with averaging filter
+//    state[3] = -d_gyro;
 }
 
 //==========================================
