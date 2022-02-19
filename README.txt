@@ -4,6 +4,7 @@ As per Arduino convention, make sure the external libraries are in the Arduino l
 
 sensor_test is an environment to test the IMU sensors as well as the motors.
 cp_ann uses an artificial neural network controller.
+cp_pid uses a PID controller.
 
 External libraries (install as required):
 Motor controller: https://github.com/pololu/qik-arduino
