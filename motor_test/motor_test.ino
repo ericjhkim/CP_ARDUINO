@@ -96,27 +96,8 @@ void loop() {
     now_time = millis();
 
     // SENSOR TEST
-    while (1) {
-        now_time = millis();
-        loop_time = now_time - prev_time;
-        prev_time = now_time;
-
-        getStates();
-
-        Serial.print(state[2]);                 // Angular velocity
-        Serial.print("__:__");
-        Serial.print(theta_xl);                   // Angular velocity
-        Serial.print("__:__");
-        Serial.print(gx);                   // Angular velocity
-        Serial.print("__:__");
-//        Serial.print(state_th);                   // Angular velocity
-//        Serial.print("__:__");
-        Serial.println(now_time);               // Time
-
-        if (abs(state[2]) > MAX_THETA){
-            Serial.println("<FAILED: Agent crashed>");
-            break;
-        }
+    while ((now_time - first_time)/1000 < 5) {
+       qik.setSpeeds(100, 100);
     }
 
     qik.setSpeeds(0, 0);
