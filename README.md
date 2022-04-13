@@ -54,6 +54,7 @@ Note: the newer boards still use the motor controller, but commands are sent thr
 ## Getting started
 
 The system and its variables are shown in the figure below:
+
 <img src="./img/cartpole.png" width="400">
 
 ### Sensor + Motor Calibration
