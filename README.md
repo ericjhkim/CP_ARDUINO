@@ -59,7 +59,8 @@ The system and its variables are shown in the figure below:
 
 ### Sensor + Motor Calibration
 First, calibrate the IMU to estimate the pole angle. The pole angle will be the state that is fed back to the PID controller for motor control.
-For calibration, run sensor_test.ino and tilt the bot along various axes to determine which axes are needed to estimate the angle.
+For calibration, run [sensor_test.ino](https://github.com/ericjhkim/Nano-Bot/tree/main/sensor_test) and tilt the bot along various axes to determine which axes are needed to estimate the angle.
+
 Depending on the physical orientation of the IMU, the inputs to the arctan function and the angle estimation will differ.
 Also, the averaging filter may be necessary depending on how noisy the IMU readings and subsequent angle estimations are.
 
@@ -67,4 +68,7 @@ Next, ensure that the motors are fully functional and spin together in the expec
 
 ### PID Control
 Depending on your board, verify and upload one of the NB_Nano sketches and make the necessary adjustments to the angle estimation and motor controls to fit the conventions and setup of your particular system. Once angle estimation is somewhat accurate and rapid, and the motors have been confirmed to be functional, it is time to tune to PID controller.
-Adjust the parameters of Kp, Ki, and Kd (if angle estimation has low noise). This process may take a while. Also, tuning your board while it is powered through a USB cable will likely result in a loss of performance when the cable is unplugged (depending on the cable's stiffness), because the cable can dampen the bot's movement, making it deceptively easier to tune. To get around this issue, load sketches via USB and then disconnect the cable and power the board through an external battery. This issue was one of the motivators for switching to the newer boards that support over-the-air sketch uploading via Arduino Cloud.
+
+Adjust the parameters of Kp, Ki, and Kd (if angle estimation has low noise). This process may take a while. Also, tuning your board while it is powered through a USB cable will likely result in a loss of performance when the cable is unplugged (depending on the cable's stiffness), because the cable can dampen the bot's movement, making it deceptively easier to tune.
+
+To get around this issue, load sketches via USB and then disconnect the cable and power the board through an external battery. This issue was one of the motivators for switching to the newer boards that support over-the-air sketch uploading via Arduino Cloud.
