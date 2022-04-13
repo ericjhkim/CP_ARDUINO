@@ -57,11 +57,6 @@ Average<float> dth_ave(10);                      // Smoothing filter for d(pole 
 
 // NEURAL NETWORK STUFF
 // Node weights (x, dx, theta, dtheta)
-//float w1 = 0;
-//float w2 = 2.434;
-//float w3 = 2.095;
-//float w4 = 1.228;
-//float wB = 0.01461;
 
 float w1 = 0.305;
 float w2 = 0.1666;

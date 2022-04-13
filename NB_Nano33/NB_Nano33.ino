@@ -1,5 +1,5 @@
 /*
-  CartPole V2 (Arduino Nano 33 IOT)
+  Nano-Bot for Arduino Nano 33 IOT (for upload via Arduino IDE)
 */
 
 #include <Arduino.h>
@@ -20,9 +20,9 @@ long first_time, now_time;
 //Define Variables we'll be connecting to
 double Setpoint, Input, Output;
 //Define the Tuning Parameters
-double consKp=1.0, consKi=0.0, consKd=0.0;
+double Kp=1.0, Ki=0.0, Kd=0.0;
 //Specify the links and initial tuning parameters
-PID myPID(&Input, &Output, &Setpoint, consKp, consKi, consKd, DIRECT);
+PID myPID(&Input, &Output, &Setpoint, Kp, Ki, Kd, DIRECT);
 
 //###################################################################
 void setup() {

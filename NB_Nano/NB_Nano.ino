@@ -1,3 +1,7 @@
+/*
+  Nano-Bot for Arduino Nano 33 IOT
+*/
+
 #include <Arduino_LSM6DS3.h>
 #include <SoftwareSerial.h>
 #include <PololuQik.h>
@@ -5,7 +9,7 @@
 #include <PID_v1.h>
 
 PololuQik2s9v1 qik(10, 11, 4);                  // Motor encoder arduino connection pins
-float xlx, xly, xlz;                            // Accelerometer values
+float ax, ay, az;                            // Accelerometer values
 float gx, gy, gz;                               // Gyroscope values
 
 float RAD2DEG = 180/PI;
@@ -29,10 +33,10 @@ int maxSpeed = 127;
 double Setpoint, Input, Output;
 
 //Define the Tuning Parameters
-double consKp=8.5, consKi=0.0, consKd=0.4;
+double Kp=8.5, Ki=0.0, Kd=0.4;
   
 //Specify the links and initial tuning parameters
-PID myPID(&Input, &Output, &Setpoint, consKp, consKi, consKd, DIRECT);
+PID myPID(&Input, &Output, &Setpoint, Kp, Ki, Kd, DIRECT);
 
 //==============SETUP======================
 
@@ -69,8 +73,8 @@ void loop() {
         state_tpos_prev = millis();
 
         // Initial pole angle measurement
-        IMU.readAcceleration(xlx, xly, xlz);
-        state_th = atan2(-xlz,xly)*RAD2DEG+TH_OFFSET;
+        IMU.readAcceleration(ax, ay, az);
+        state_th = atan2(-az,ay)*RAD2DEG+TH_OFFSET;
         init_flag = false;
         Serial.println("<Second initialization complete>");
     }
@@ -106,17 +110,17 @@ void loop() {
 // Takes raw IMU and encoder data and calculates pole angle for PID
 void getAngle() {
 
-    IMU.readGyroscope(gx, gy, gz);                                            // Take gyroscope measurement
-    IMU.readAcceleration(xlx, xly, xlz);                                      // Take accelerometer measurement
+    IMU.readGyroscope(gx, gy, gz);                                          // Take gyroscope measurement
+    IMU.readAcceleration(ax, ay, az);                                       // Take accelerometer measurement
 
-    gx = gx - 1.22;                                                           // Stationary offset adjustment
+    gx = gx - 1.22;                                                         // Stationary offset adjustment
 
-    if (!isnan(gx) && !isnan(xly) && !isnan(xlz)){
+    if (!isnan(gx) && !isnan(ay) && !isnan(az)){
         // Set pole angle =================================================================================
-        theta_xl = atan2(-xlz,xly)*RAD2DEG+TH_OFFSET;
-        state_th = 0.9*(state_th+gx*(loop_time/1000.0)) + 0.1*theta_xl;       // Kalman filter operation to combine gyro and xl measurements (gyro outputs in deg/s)
+        theta_xl = atan2(-az,ay)*RAD2DEG+TH_OFFSET;
+        state_th = 0.9*(state_th+gx*(loop_time/1000.0)) + 0.1*theta_xl;     // Kalman filter operation to combine gyro and xl measurements (gyro outputs in deg/s)
            
-        th_ave.push(state_th);
-        Input = th_ave.mean();                                                // Theta with averaging filter
+        th_ave.push(state_th);                                              // Theta with averaging filter
+        Input = th_ave.mean();
     }
 }
