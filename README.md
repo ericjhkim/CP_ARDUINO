@@ -54,7 +54,7 @@ Note: the newer boards still use the motor controller, but commands are sent thr
 ## Getting started
 
 The system and its variables are shown in the figure below:
-[./img/cartpole.png|width=400px]
+<img src="./img/cartpole.png" width="400">
 
 ### Sensor + Motor Calibration
 First, calibrate the IMU to estimate the pole angle. The pole angle will be the state that is fed back to the PID controller for motor control.
